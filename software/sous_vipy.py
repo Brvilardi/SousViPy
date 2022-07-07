@@ -1,4 +1,4 @@
-
+import time
 
 from components.relay import Relay
 from components.temperature_sensor import TemperatureSensor
@@ -18,7 +18,7 @@ class SousVipy:
         # Initialize components
         self.temperature_sensor = TemperatureSensor(data_pin=16)
         self.relay = Relay(pin_number=15)
-        self.pid_controller = PID(Kp=10.0, Ki=0.0, Kd=0.0, setpoint=desired_temperature, sample_time=SousVipy.sample_time, output_limits=(SousVipy.min_pid_output, SousVipy.max_pid_output))
+        self.pid_controller = PID(Kp=1.0, Ki=3.0, Kd=0.2, setpoint=desired_temperature, sample_time=SousVipy.sample_time, output_limits=(SousVipy.min_pid_output, SousVipy.max_pid_output))
 
         # Make sure the relay is off
         self.relay.turn_off()
@@ -44,7 +44,9 @@ class SousVipy:
         self.log_current_temperature.append(self.current_temperature)
         self.log_pid_output.append(pid_output)
         self.log_relay_state.append(self.relay.get_state())
-        self.time.append(self.time[-1] + SousVipy.sample_time)
+        self.time.append(self.time[-1] + SousVipy.sample_time) if len(self.time) > 0 else self.time.append(0)
+
+        return self.current_temperature, pid_output, self.relay.get_state()
 
     def calculate_time_on_ratio(self, pid_output: float) -> float:
         """
@@ -64,6 +66,36 @@ class SousVipy:
 
         # pid_output is between 0 and max_pid_output
         return pid_output / SousVipy.max_pid_output
+
+    def get_setup_relay_timer(self, time_on_ratio: float):
+        """
+        Setup the relay timer.
+        :param time_on_ratio: float - The time the relay should be on/off ratio.
+        """
+        def func():
+            self.relay.turn_on()
+            time.sleep(time_on_ratio * SousVipy.sample_time)
+            self.relay.turn_off()
+            time.sleep(SousVipy.sample_time - time_on_ratio * SousVipy.sample_time)
+
+        return func
+
+
+
+    def run_loop(self):
+        # TODO implement a way to save the logs
+        while True:
+            current_status = self.update_system()
+            time_on_ratio = self.calculate_time_on_ratio(self.pid_controller(self.current_temperature))
+            print("Time on ration: {}".format(time_on_ratio))
+            scheduler = self.get_setup_relay_timer(time_on_ratio)
+            scheduler()
+            print("{} {} {}".format(current_status[0], current_status[1], current_status[2]))
+
+
+
+
+
 
 
 
