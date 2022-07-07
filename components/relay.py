@@ -19,3 +19,6 @@ class Relay:
 
     def turn_off(self):
         self.relay.turn_off()
+
+    def get_state(self):
+        return self.relay.get_state()
