@@ -1,28 +1,42 @@
-import framebuf
-from machine import I2C, Pin
-
-from components.hardware.SSD1306 import SSD1306_I2C
+from components.hardware.o_led_display import OLedDisplay
 
 
 class Display:
-    width = 128
-    height = 64
 
     def __init__(self, ic2_id: int = 1, sda: int = 26, scl: int = 27, i2c_freq: int = 200_000):
-        i2c = I2C(ic2_id, scl=Pin(scl), sda=Pin(sda), freq=i2c_freq)
-        self.display_driver = SSD1306_I2C(width=Display.width, height=Display.height, i2c=i2c, addr=0x3c)
+        self.display = OLedDisplay(ic2_id=ic2_id, sda=sda, scl=scl, i2c_freq=i2c_freq)
+        self.display.clear()
+        self.make_headers("on", "off", 0)
+        self.update_display(
+            {
+                "Target": "XC",
+                "Current": "YC"
+            }
+        )
+
+    def make_headers(self, system_status: str = "on", heater_status: str = "off", time: int = 0):
+        self.header_1 = "S: {} | H: {}".format(system_status, heater_status)
+        self.header_2 = "Time: {}".format(self.calculate_time_string(time))
 
 
-    def show_text(self, text: str, x: int = 0, y: int = 0, color: int = 1):
-        self.display_driver.text(text, x, y)
-        self.display_driver.show()
+    def update_display(self, body):
+        self.display.clear()
+        self.display.show_text(self.header_1, 0, 0)
+        self.display.show_text(self.header_2, 0, 9)
+        self.draw_body(body)
 
 
-    def draw_icon(self, icon: bytearray):
-        fb = framebuf.FrameBuffer(icon, 64, 64, framebuf.MONO_HLSB)
-        self.display_driver.fill(0)
-        self.display_driver.blit(fb, 32, 0)
-        self.display_driver.show()
+    def draw_body(self, body_dict: dict):
+        cont = 0
+        for i in body_dict:
+            self.display.show_text("{}: {}".format(i, body_dict[i]), 0, (cont+2) * 9)
+            cont += 1
 
+    def calculate_time_string(self, time_since_begining: int):
+        hour = time_since_begining // 60 // 60 if (time_since_begining // 60 // 60 > 10) else "0{}".format(time_since_begining // 60 // 60)
+        min = time_since_begining // 60 if (time_since_begining // 60 > 10) else "0{}".format(time_since_begining // 60)
+        sec = time_since_begining % 60 if (time_since_begining % 60 > 10) else "0{}".format(time_since_begining % 60)
+
+        return "{}:{}:{}".format(hour, min, sec)
 
 
