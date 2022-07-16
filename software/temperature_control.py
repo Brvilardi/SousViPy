@@ -28,9 +28,9 @@ class TemperatureControl:
         self.current_temperature = None
 
     def init(self, desired_temperature: float):
-        self.pid_controller = PID(Kp=30.0, Kd=25, setpoint=desired_temperature*1.025,
+        self.pid_controller = PID(Kp=30.0, Kd=25, setpoint=desired_temperature + 1.015,
                                   sample_time=TemperatureControl.sample_time,
-                                  output_limits=(TemperatureControl.min_pid_output, TemperatureControl.max_pid_output)) #ki not used and desired temperature is increased by 10% to compensate that
+                                  output_limits=(TemperatureControl.min_pid_output, TemperatureControl.max_pid_output)) #ki not used and desired temperature is increased by 15% to compensate that
 
         # Set up the Initial temperatures
         self.desired_temperature = desired_temperature
