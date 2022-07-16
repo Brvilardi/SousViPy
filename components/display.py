@@ -8,10 +8,10 @@ class Display:
         self.display.clear()
         self.make_headers("on", "off", 0)
         self.update_display(
-            {
-                "Target": "XC",
-                "Current": "YC"
-            }
+            [
+                ("Target", "XC"),
+                ("Current", "YC")
+            ]
         )
 
     def make_headers(self, system_status: str = "on", heater_status: str = "off", time: int = 0):
@@ -26,10 +26,10 @@ class Display:
         self.draw_body(body)
 
 
-    def draw_body(self, body_dict: dict):
+    def draw_body(self, body_list: dict):
         cont = 0
-        for i in body_dict:
-            self.display.show_text("{}: {}".format(i, body_dict[i]), 0, (cont+2) * 9)
+        for i in body_list:
+            self.display.show_text("{}: {}".format(i[0], i[1]), 0, (cont+2) * 9)
             cont += 1
 
     def calculate_time_string(self, time_since_begining: int):

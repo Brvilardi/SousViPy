@@ -1,101 +1,122 @@
 import time
 
-from components.relay import Relay
-from components.temperature_sensor import TemperatureSensor
-from software.modules.simple_pid import PID
+from components.display import Display
+from components.hardware.linear_potentiometer import LinearPotentiometer
+from software.temperature_control import TemperatureControl
 
 
 class SousVipy:
-    sample_time: float = 15.0  # seconds
-    max_temp: float = 100.0  # degrees Celsius
-    min_temp: float = 0.0 # degrees Celsius
-    max_pid_output: float = 1000.0
-    min_pid_output: float = -max_pid_output
+    max_temp = 100
+    min_temp = 0
 
-    def __init__(self, desired_temperature: float = 65):
-        # imporant variables to consider: desired_temperature, superficie contato (area da panela), faixa de temperatura (0-100), temperatura ambiente
-
-        # Initialize components
-        self.temperature_sensor = TemperatureSensor(data_pin=16)
-        self.relay = Relay(pin_number=15)
-        self.pid_controller = PID(Kp=1.0, Ki=3.0, Kd=0.2, setpoint=desired_temperature, sample_time=SousVipy.sample_time, output_limits=(SousVipy.min_pid_output, SousVipy.max_pid_output))
-
-        # Make sure the relay is off
-        self.relay.turn_off()
-
-        # Set up the Initial temperatures
-        self.desired_temperature = desired_temperature
-        self.current_temperature = self.temperature_sensor.get_temperature()
-
-        # Initialize the log variables
-        self.log_desired_temperature = []
-        self.log_current_temperature = []
-        self.log_pid_output = []
-        self.log_relay_state = []
-        self.time = []
-
-    def update_system(self):
-        # Update system
-        self.current_temperature = self.temperature_sensor.get_temperature()
-        pid_output = self.pid_controller(self.current_temperature)
-
-        # Update the log variables
-        self.log_desired_temperature.append(self.desired_temperature)
-        self.log_current_temperature.append(self.current_temperature)
-        self.log_pid_output.append(pid_output)
-        self.log_relay_state.append(self.relay.get_state())
-        self.time.append(self.time[-1] + SousVipy.sample_time) if len(self.time) > 0 else self.time.append(0)
-
-        return self.current_temperature, pid_output, self.relay.get_state()
-
-    def calculate_time_on_ratio(self, pid_output: float) -> float:
-        """
-        Calculate the time the relay should be on/off ratio based on the current temperature, pid_output, min_temp and max_temp.
-        :param pid_output:
-        :return: ratio 0.0-1.0
-        """
-        # Min / Max temperature
-        if self.current_temperature <= SousVipy.min_temp:  # Too cold
-            return 1.0
-        elif self.current_temperature >= SousVipy.max_temp:  # Too hot
-            return 0.0
-
-        # Calculate the time the relay should be on/off ratio
-        if pid_output < 0:
-            return 0.0
-
-        # pid_output is between 0 and max_pid_output
-        return pid_output / SousVipy.max_pid_output
-
-    def get_setup_relay_timer(self, time_on_ratio: float):
-        """
-        Setup the relay timer.
-        :param time_on_ratio: float - The time the relay should be on/off ratio.
-        """
-        def func():
-            self.relay.turn_on()
-            time.sleep(time_on_ratio * SousVipy.sample_time)
-            self.relay.turn_off()
-            time.sleep(SousVipy.sample_time - time_on_ratio * SousVipy.sample_time)
-
-        return func
+    def __init__(self):
+        # Initialize the components
+        self.display = Display(ic2_id=0, sda=16, scl=17, i2c_freq=200_000)
+        self.temperature_control = TemperatureControl(temperature_sensor_pin=15, relay_pin=14)
+        self.potentiometer = LinearPotentiometer(data_pin=26)
 
 
+        # Update the display
+        self.current_temperature = self.temperature_control.temperature_sensor.get_temperature()
+        self.desired_temperature = 35
 
-    def run_loop(self):
-        # TODO implement a way to save the logs
+        self.display.make_headers(system_status="on", heater_status="off", time=0)
+        self.display.update_display(
+            [
+                ("Target", self.desired_temperature),
+                ("Current", self.current_temperature),
+                ("Next", "Pres button...")
+            ]
+        )
+
+        self.init()
+
+    def init(self):
+        print("Desired temp: {}".format(self.desired_temperature))
+        if (self.desired_temperature is None):
+            self.desired_temperature = self.wait_temperature_input()
+
+        time.sleep(3)
+
+        self.display.update_display(
+            [
+                ("Target", self.desired_temperature),
+                ("Current", self.current_temperature),
+                ("Next", "System starting")
+            ]
+        )
+
+        self.temperature_control.init(desired_temperature=self.desired_temperature,
+                                      current_temperature=self.temperature_control.temperature_sensor.get_temperature())
+
+    def wait_temperature_input(self):
+        pot = self.parse_pot(self.potentiometer.get_value())
+
+        time_to_wait = 10 # s
+        cont = 0
+
+        self.display.update_display(
+            [
+                ("Select", "temperature"),
+                ("Current", pot),
+                ("Status", "slide pot...")
+            ]
+        )
+
+        time.sleep(1.5)
+
         while True:
-            current_status = self.update_system()
-            time_on_ratio = self.calculate_time_on_ratio(self.pid_controller(self.current_temperature))
-            print("Time on ration: {}".format(time_on_ratio))
-            scheduler = self.get_setup_relay_timer(time_on_ratio)
-            scheduler()
-            print("{} {} {}".format(current_status[0], current_status[1], current_status[2]))
+            new_pot = self.parse_pot(self.potentiometer.get_value())
+            if (new_pot == pot):
+                cont += 1
+                self.display.update_display(
+                    [
+                        ("Select", "temperature"),
+                        ("Current", new_pot),
+                        ("Status", "hold"),
+                        ("Hold more", time_to_wait - cont)
+
+
+                    ]
+                )
+                if (cont >= time_to_wait):
+                    self.display.update_display(
+                        [
+                            ("Select", "temperature"),
+                            ("Current", pot),
+                            ("Status", "temp selected")
+
+                        ]
+                    )
+                    return pot
+            else:
+                pot = new_pot
+                cont = 0
+                self.display.update_display(
+                    [
+                        ("Select", "temperature"),
+                        ("Current", pot),
+                        ("Status", "slide pot...")
+                    ]
+                )
+            time.sleep(1)
 
 
 
+    def parse_pot(self, pot_value):
+        pot = round(pot_value / 5) * 5
+        return ((pot - SousVipy.min_temp) * 100) / (SousVipy.max_temp - SousVipy.min_temp)
 
-
+    def main_loop(self):
+        while True:
+            self.current_temperature, time_on_ration = self.temperature_control()
+            self.display.update_display(
+                [
+                    ("Target", self.desired_temperature),
+                    ("Current", self.current_temperature),
+                    ("On/off", "{}%".format(time_on_ration*100))
+                ]
+            )
 
 
 
