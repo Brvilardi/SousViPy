@@ -17,37 +17,41 @@ class SousVipy:
 
 
         # Update the display
-        self.current_temperature = self.temperature_control.temperature_sensor.get_temperature()
-        self.desired_temperature = 35
+        self.current_temperature = self.temperature_control.get_current_temperature()
+        self.desired_temperature = 60 #todo remove this
 
         self.display.make_headers(system_status="on", heater_status="off", time=0)
         self.display.update_display(
             [
                 ("Target", self.desired_temperature),
                 ("Current", self.current_temperature),
-                ("Next", "Pres button...")
+                ("Status", "set temp")
             ]
         )
 
         self.init()
 
     def init(self):
-        print("Desired temp: {}".format(self.desired_temperature))
+        print("System starting, getting target temperature...")
         if (self.desired_temperature is None):
             self.desired_temperature = self.wait_temperature_input()
 
-        time.sleep(3)
+        print("Desired temp: {}".format(self.desired_temperature))
+
+        time.sleep(1)
 
         self.display.update_display(
             [
                 ("Target", self.desired_temperature),
                 ("Current", self.current_temperature),
-                ("Next", "System starting")
+                ("Status", "ready")
             ]
         )
 
-        self.temperature_control.init(desired_temperature=self.desired_temperature,
-                                      current_temperature=self.temperature_control.temperature_sensor.get_temperature())
+        print("System initiating temperature controller")
+        self.temperature_control.init(desired_temperature=self.desired_temperature)
+        print("System ready!")
+
 
     def wait_temperature_input(self):
         pot = self.parse_pot(self.potentiometer.get_value())
@@ -107,14 +111,29 @@ class SousVipy:
         pot = round(pot_value / 5) * 5
         return ((pot - SousVipy.min_temp) * 100) / (SousVipy.max_temp - SousVipy.min_temp)
 
-    def main_loop(self):
+    def main_loop(self): #todo implement time update
+        # takes the temperature to half of the desired temperature
+        # self.display.update_display(
+        #     [
+        #         ("Target", self.desired_temperature),
+        #         ("Current", self.current_temperature),
+        #         ("On/off", "{:.2f}%".format(100)),
+        #         ("status", "warming"),
+        #         ("Warm till", "{:.2f}".format(0.8 * self.desired_temperature))
+        #     ]
+        # )
+        # print("Warming up...")
+        # self.temperature_control.warm_up()
+        # print("Warm up finished")
+
         while True:
             self.current_temperature, time_on_ration = self.temperature_control()
             self.display.update_display(
                 [
-                    ("Target", self.desired_temperature),
-                    ("Current", self.current_temperature),
-                    ("On/off", "{}%".format(time_on_ration*100))
+                    ("Target", "{:.1f}C".format(self.desired_temperature)),
+                    ("Current", "{:.1f}C".format(self.current_temperature)),
+                    ("On/off", "{:.1f}%".format(time_on_ration*100)),
+                    ("status", "PID")
                 ]
             )
 
