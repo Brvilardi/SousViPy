@@ -3,8 +3,9 @@ from components.hardware.o_led_display import OLedDisplay
 
 class Display:
 
-    def __init__(self, ic2_id: int = 1, sda: int = 26, scl: int = 27, i2c_freq: int = 200_000):
-        self.display = OLedDisplay(ic2_id=ic2_id, sda=sda, scl=scl, i2c_freq=i2c_freq)
+    def __init__(self, display: OLedDisplay):
+        self.display = display
+
         self.display.clear()
         self.make_headers("on", "off", 0)
         self.update_display(

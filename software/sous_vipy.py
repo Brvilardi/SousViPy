@@ -2,6 +2,7 @@ import time
 
 from components.display import Display
 from components.hardware.linear_potentiometer import LinearPotentiometer
+from components.hardware.o_led_display import OLedDisplay_I2C, OLedDisplay_SPI
 from software.temperature_control import TemperatureControl
 
 
@@ -11,7 +12,11 @@ class SousVipy:
 
     def __init__(self):
         # Initialize the components
-        self.display = Display(ic2_id=0, sda=16, scl=17, i2c_freq=200_000)
+
+        # displayI2C = OLedDisplay_I2C(ic2_id=0, sda=16, scl=17, i2c_freq=200_000)
+        display_spi = OLedDisplay_SPI(sck=18, mosi=19, dc=17, res=20, cs=16)
+        self.display = Display(display_spi)
+
         self.temperature_control = TemperatureControl(temperature_sensor_pin=15, relay_pin=14)
         self.potentiometer = LinearPotentiometer(data_pin=26)
 
